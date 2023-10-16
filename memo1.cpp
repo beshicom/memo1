@@ -22,7 +22,7 @@ HINSTANCE	hInstance;
 HWND		hwndMain;
 
 char	ClassName[] = "Memo1MainClass";
-char	AppName[] = "Memo1";
+char	AppName[] = "Memo1    RETURN for SAVE  R-BUTTON for MENU";
 
 char	EditClass[] = "EDIT";
 HWND	hwndEdit;
@@ -94,7 +94,8 @@ int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 	wc.cbWndExtra = 0;
 	wc.hInstance = hInst;
 	wc.hbrBackground = (HBRUSH)COLOR_APPWORKSPACE;
-	wc.lpszMenuName = MAKEINTRESOURCE( IDR_MAINMENU );
+	//wc.lpszMenuName = MAKEINTRESOURCE( IDR_MAINMENU );
+	wc.lpszMenuName = NULL;
 	wc.lpszClassName = ClassName;
 	wc.hIcon = LoadIcon( hInst, MAKEINTRESOURCE(IDR_ICON) );
 	wc.hIconSm = wc.hIcon;
@@ -106,7 +107,7 @@ int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 	{
 	hwndMain = CreateWindowEx( WS_EX_CLIENTEDGE, ClassName, AppName,
 		WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE ,
-		CW_USEDEFAULT, CW_USEDEFAULT, 400, 100,
+		CW_USEDEFAULT, CW_USEDEFAULT, 800, 80,
 		NULL, NULL, hInst, NULL );
 	//ShowWindow( hwnd, CmdShow );
 	//UpdateWindow( hwnd );
@@ -165,6 +166,23 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 		}// WM_SIZE
 		break;
 
+	case WM_RBUTTONDOWN:
+		{
+
+		POINT	pt;
+		pt.x = LOWORD( lParam );
+		pt.y = HIWORD( lParam );
+		HMENU	h = LoadMenu( hInstance, MAKEINTRESOURCE( IDR_MAINMENU ) );
+		HMENU	hs = GetSubMenu( h, 0 );
+		//CheckMenuItem( h, IDM_TOPMOST,
+		//		MF_BYCOMMAND | ( gfTopMost ? MF_CHECKED : MF_UNCHECKED )  );
+		ClientToScreen( hWnd, &pt );
+		TrackPopupMenu( hs, TPM_LEFTALIGN, pt.x, pt.y, 0, hWnd, NULL );
+		DestroyMenu( h );
+
+		}	// WM_RBUTTONDOWN
+		break;
+
 	case WM_COMMAND:
 		{
 
@@ -210,7 +228,10 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 
 		int	n = lstrlen( buffer );
 
-		GetWindowText( hwndEdit, buffer+n, MEMOSIZE );
+		if(  GetWindowText( hwndEdit, buffer+n, MEMOSIZE ) == 0  ){
+			PostQuitMessage( NULL );
+			break;
+		}
 
 		//MessageBox( NULL, buffer, AppName, MB_OK );
 
