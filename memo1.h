@@ -12,6 +12,8 @@
 
 
 
+#define	IDR_ICON		200
+
 #define	IDR_MAINMENU	101
 
 

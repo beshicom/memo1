@@ -14,6 +14,10 @@
 
 
 
+IDR_ICON	ICON	DISCARDABLE		"memo1.ico"
+
+
+
 IDR_MAINMENU	MENU
 {
 	POPUP	"&File"

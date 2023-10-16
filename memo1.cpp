@@ -96,7 +96,7 @@ int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 	wc.hbrBackground = (HBRUSH)COLOR_APPWORKSPACE;
 	wc.lpszMenuName = MAKEINTRESOURCE( IDR_MAINMENU );
 	wc.lpszClassName = ClassName;
-	wc.hIcon = LoadIcon( NULL, IDI_APPLICATION );
+	wc.hIcon = LoadIcon( hInst, MAKEINTRESOURCE(IDR_ICON) );
 	wc.hIconSm = wc.hIcon;
 	wc.hCursor = LoadCursor( NULL, IDC_ARROW );
 	RegisterClassEx( &wc );
