@@ -32,6 +32,52 @@ WNDPROC	OldWndProc;
 #define	BUFFERSIZE	MEMOSIZE+100
 char	buffer[ BUFFERSIZE + 1 ];
 
+// 過去メモの表示
+DWORD	nMaxDsp = 30;	// 最大表示数
+
+struct MemoInfo {
+	MemoInfo *	pPrev;
+	MemoInfo *	pNext;
+	char *		pText;
+};
+
+MemoInfo *	pTopMemoData = NULL;
+MemoInfo *	pLastMemoData = NULL;
+
+
+
+//
+// 改行コードまで移動する
+//
+char * MoveToCRLF ( char * pText )
+{
+	char *	p = pText;
+	if( p == NULL )		return NULL;
+	while( *p != 0 ){
+		if( *p == 0x0d )	break;
+		if( *p == 0x0a )	break;
+		++p;
+	}
+	return p;
+}
+
+
+
+//
+// 改行コードをスキップする
+//
+char * SkipCRLF ( char * pText )
+{
+	char *	p = pText;
+	if( p == NULL )		return NULL;
+	while( *p != 0 ){
+		if( *p == 0x0d ){ ++p; continue; }
+		if( *p == 0x0a ){ ++p; continue; }
+		break;
+	}
+	return p;
+}
+
 
 
 //
@@ -103,25 +149,119 @@ int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 	RegisterClassEx( &wc );
 	}
 
+
+	// 前回のメモを取得
+	{
+
+	char	path[ MAX_PATH ];
+	BCCGetDataPath( path );
+
+	HANDLE	hFile = CreateFile( path, GENERIC_READ,
+			NULL, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
+
+	while( hFile != NULL ){
+
+		LARGE_INTEGER	fs;
+		fs.QuadPart = 0;
+
+		BOOL	fOK = GetFileSizeEx( hFile, &fs );
+		if( ! fOK ){  CloseHandle(hFile);  break;  }
+
+		int	sz = fs.u.LowPart + 100;
+		char *	pb = new char[sz];
+		if( pb == NULL ){  CloseHandle(hFile);  break;  }
+		ZeroMemory( pb, sz );
+
+		DWORD	bytesRead;
+		fOK = ReadFile( hFile, pb, fs.u.LowPart, &bytesRead, NULL );
+		CloseHandle( hFile );
+		if( ! fOK ){  delete[] pb;  break;  }
+		pb[bytesRead] = 0;
+
+		char *	p = pb;
+		int		nLine = 0;
+		while( p < pb+bytesRead-10 ){
+			if( *p == 0 )	break;
+			int		n = MoveToCRLF(p) - p;
+			if( n <= 0 )	break;
+			MemoInfo *	mi = new MemoInfo;
+			if( mi == NULL )	break;
+			mi->pPrev = NULL;
+			mi->pNext = NULL;
+			mi->pText = new char[n+1];
+			if( mi->pText == NULL ){
+				delete mi;  break;
+			}
+			CopyMemory( mi->pText, p, n );
+			*(mi->pText+n) = 0;
+			//MessageBox( NULL, mi->pText, AppName, MB_OK );
+			p += n+1;
+			p = SkipCRLF(p);
+			// リンク
+			if( pLastMemoData == NULL ){	// ひとつめ
+				pTopMemoData = mi;
+			}
+			else{	// miはpLastMemoDataの次
+				mi->pPrev = pLastMemoData;
+				pLastMemoData->pNext = mi;
+			}
+			pLastMemoData = mi;
+			if( nLine >= nMaxDsp ){
+				// 先頭を削除
+				MemoInfo *	pm = pTopMemoData->pNext;
+				delete[] pTopMemoData->pText;
+				delete	pTopMemoData;
+				pTopMemoData = pm;
+				pTopMemoData->pPrev = NULL;
+			}
+			else	++nLine;
+		}// while p
+
+		delete[] pb;
+
+		break;
+
+	}// while hFile
+
+	}// end
+
+
 	// ウインドウの作成
 	{
-	hwndMain = CreateWindowEx( WS_EX_CLIENTEDGE, ClassName, AppName,
+	char * pt = AppName;
+	if( pLastMemoData != NULL ){
+		wsprintf( buffer, "%s      %-100s", AppName, pLastMemoData->pText );
+		pt = buffer;
+	}
+	hwndMain = CreateWindowEx( WS_EX_CLIENTEDGE, ClassName, pt,
 		WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE ,
-		CW_USEDEFAULT, CW_USEDEFAULT, 800, 80,
+		CW_USEDEFAULT, CW_USEDEFAULT, 1000, 80,
 		NULL, NULL, hInst, NULL );
 	//ShowWindow( hwnd, CmdShow );
 	//UpdateWindow( hwnd );
 	}
 
+
 	// メッセージループ
 	{
+
 	MSG	msg;
 	while( GetMessage( &msg, NULL, 0, 0 ) ){
 		TranslateMessage( &msg );
 		DispatchMessage( &msg );
 	}
-	return msg.wParam;
+
+	MemoInfo *	p = pTopMemoData;
+	while( p != NULL ){
+		MemoInfo *	mp = p->pNext;
+		delete[]	p->pText;
+		delete		p;
+		p = mp;
 	}
+
+	return msg.wParam;
+
+	}// end
 
 }
 
@@ -202,6 +342,8 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 
 		case IDM_OPEN:
 			{
+
+			MessageBox( NULL, "IDM_OPEN", AppName, MB_OK );
 
 			}// end IDM_OPEN
 			break;
@@ -291,6 +433,60 @@ LRESULT CALLBACK EditWndProc(
 		return CallWindowProc( OldWndProc, hWnd, uMsg, wParam, lParam );
 
 		}// WM_KEYDOWN
+		break;
+
+	case WM_RBUTTONDOWN:
+		{
+
+		POINT	pt;
+		pt.x = LOWORD( lParam );
+		pt.y = HIWORD( lParam );
+		HMENU	h = LoadMenu( hInstance, MAKEINTRESOURCE( IDR_MAINMENU ) );
+		HMENU	hs = GetSubMenu( h, 0 );
+		//CheckMenuItem( h, IDM_TOPMOST,
+		//		MF_BYCOMMAND | ( gfTopMost ? MF_CHECKED : MF_UNCHECKED )  );
+		ClientToScreen( hWnd, &pt );
+		TrackPopupMenu( hs, TPM_LEFTALIGN, pt.x, pt.y, 0, hWnd, NULL );
+		DestroyMenu( h );
+
+		}	// WM_RBUTTONDOWN
+		break;
+
+	case WM_COMMAND:
+		{
+
+		if( lParam != 0 ){
+			// lParam : コントロールウインドウのハンドル
+			//	HIWORD(wParam) : 通知コード
+			//	LOWORD(wParam) : コントロールID
+			break;
+		}
+
+		if( HIWORD( wParam ) != 0 ){
+			// HIWORD( wParam ) : アクセラレータのメッセージ
+			break;
+		}
+
+		switch( LOWORD( wParam ) ){
+
+		case IDM_OPEN:
+			{
+
+			MessageBox( NULL, "IDM_OPEN", AppName, MB_OK );
+
+			}// end IDM_OPEN
+			break;
+
+		default:
+			{
+
+			DestroyWindow( hwndMain );
+
+			}
+
+		}// switch
+
+		}// end WM_COMMAND
 		break;
 
 	default:

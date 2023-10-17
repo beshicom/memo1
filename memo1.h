@@ -18,8 +18,10 @@
 
 
 
-#define	IDM_OPEN	40001
-
+#define	IDM_OPEN	40100
+#define	IDM_SAVE	40200
+#define	IDM_DISP	40300
+#define	IDM_EXIT	49900
 
 
 #endif	// B__MEMO1_H__B
