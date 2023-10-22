@@ -31,6 +31,16 @@ IDR_MAINMENU	MENU	DISCARDABLE
 	}
 }
 
+IDR_DSPMENU		MENU	DISCARDABLE
+{
+	POPUP	"&File"
+	{
+		MENUITEM	"&Save", IDM_SAVED
+		MENUITEM	SEPARATOR
+		MENUITEM	"&Exit", IDM_EXITD
+	}
+}
+
 
 
 // end of this file : memo1.rc
