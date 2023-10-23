@@ -28,7 +28,8 @@ int		fDspWndQuit = 0;
 
 char	ClassName[] = "Memo1MainClass";
 char	DspWndCN[] = "Memo1DisplayClass";
-char	AppName[] = "Memo1";
+char	ApplicationName[] = "Memo1";
+char	AppName[20];
 
 int		MainX = 100;
 int		MainY = 100;
@@ -116,14 +117,19 @@ MemoInfo *	pTopMemoData = NULL;
 MemoInfo *	pLastMemoData = NULL;
 
 struct DspInfo {
-	HWND	hwndStatic;
-	HWND	hwndDEdit;
-	MemoInfo *	pMemo;
+	HWND	hwndStatic;		// メモの表示
+	HWND	hwndDEdit;		// メモの編集
+	HWND	hwndSLNum;		// 行番号の表示
+	HWND	hwndSDT;		// 日付時刻の表示
+	MemoInfo *	pMemo;		// メモの情報
 };
 DspInfo		DspData[ nMaxDsp ];
 
 int		fDspEdit = 0;		// 過去メモ編集中
 int		nCrntDEdit = 0;		// 表示中の過去メモエディット
+
+HBRUSH	hDEditBrush;
+
 
 
 // 設定ファイル
@@ -140,6 +146,31 @@ struct ConfigInfo {
 	int		DspWidth;
 	int		DspHeight;
 };
+
+
+
+int GetCompileTime ( char * pStr )
+{
+							// 00000000001
+							// 01234567890
+	char *	dt = __DATE__;	// Oct 23 2023
+	char *	tm = __TIME__;	// 04:54:31
+	char	dt4, dt5;
+	dt4 = dt[4];
+	dt5 = dt[5];
+	if( dt5 == ' ' ){ dt5 = dt4; dt4 = '0'; }
+	int		d = (dt4-'0')*10 + (dt5-'0');
+	int		t = d*24 + (tm[0]-'0')*10 + (tm[1]-'0');
+	t = t*60 + (tm[3]-'0')*10 + (tm[4]-'0');
+	pStr[0] = dt4;
+	pStr[1] = dt5;
+	pStr[2] = tm[0];
+	pStr[3] = tm[1];
+	pStr[4] = tm[3];
+	pStr[5] = tm[4];
+	pStr[6] = 0;
+	return t;
+}
 
 
 
@@ -345,6 +376,14 @@ int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 {
 
 	hInstance = hInst;
+
+	{
+	char	buf[100];
+	GetCompileTime( buf );
+	wsprintf( AppName, "%s  %s", ApplicationName, buf );
+	}
+
+	hDEditBrush = CreateSolidBrush( RGB( 255, 200, 200 ) );
 
 	// メインウインドウクラスの登録
 	{
@@ -559,6 +598,8 @@ int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 	}// while
 
 
+	DeleteObject( hDEditBrush );
+
 	MemoInfo *	p = pTopMemoData;
 	while( p != NULL ){
 		MemoInfo *	mp = p->pNext;
@@ -759,22 +800,33 @@ LRESULT CALLBACK DspWndProc(
 
 		int		x = 0;
 		int		y = 0;
-		MemoInfo *	pM = pTopMemoData;
-		for( int i=0; i < 20; ++i ){
+		MemoInfo *	pM = pLastMemoData;
+		for( int i=0; i < 25; ++i ){
+			DspData[i].hwndSLNum = CreateWindowEx( NULL, "STATIC", NULL,
+				WS_CHILD | WS_VISIBLE | SS_RIGHT,
+				0, 20*i, 40, 20, hWnd, (HMENU)(i+nMaxDsp*2), hInstance, NULL );
+			DspData[i].hwndSDT = CreateWindowEx( NULL, "STATIC", NULL,
+				WS_CHILD | WS_VISIBLE | SS_RIGHT,
+				40, 20*i, 170, 20, hWnd, (HMENU)(i+nMaxDsp), hInstance, NULL );
 			DspData[i].hwndStatic = CreateWindowEx( NULL, "STATIC", NULL,
 				WS_CHILD | WS_VISIBLE | SS_NOTIFY,
-				0, 20*i, 1000, 20, hWnd, (HMENU)i, hInstance, NULL );
-			if( pM == NULL )	continue;
-			DspData[i].pMemo = pM;
-			SetWindowText( DspData[i].hwndStatic, pM->pText );
+				210, 20*i, 1000, 20, hWnd, (HMENU)i, hInstance, NULL );
 			DspData[i].hwndDEdit = CreateWindowEx( NULL, EditClass, NULL,
 				WS_CHILD | ES_AUTOHSCROLL ,
-				140, 20*i, 750, 20, hWnd, (HMENU)i, hInstance, NULL );
+				210, 20*i, 770, 20, hWnd, (HMENU)i, hInstance, NULL );
+			if( pM == NULL )	continue;
+			DspData[i].pMemo = pM;
+			char	buf[100];
+			wsprintf( buf, "%d  ", i+1 );
+			SetWindowText( DspData[i].hwndSLNum, buf );
+			wsprintf( buf, "%s   ", pM->pDateTime );
+			SetWindowText( DspData[i].hwndSDT, buf );
+			SetWindowText( DspData[i].hwndStatic, pM->pMemo );
 			SetWindowText( DspData[i].hwndDEdit, pM->pMemo );
 			// サブクラス化
 			OldDEditWndProc = (WNDPROC)SetWindowLong(
 					DspData[i].hwndDEdit, GWL_WNDPROC, (DWORD)DEditWndProc );
-			pM = pM->pNext;
+			pM = pM->pPrev;
 		}// for
 
 		}// WM_CREATE
@@ -788,6 +840,31 @@ LRESULT CALLBACK DspWndProc(
 		return (LRESULT)GetStockObject( BLACK_BRUSH );
 
 		}// WM_CTLCOLOREDIT
+		break;
+
+	case WM_CTLCOLORSTATIC:
+		{
+
+		int		nID = GetWindowLong( (HWND)lParam, GWL_ID );
+		HBRUSH	hCrntBrush = (HBRUSH)SelectObject( (HDC)wParam, hDEditBrush );
+		SelectObject( (HDC)wParam, hCrntBrush );
+		HBRUSH	hBrush = hCrntBrush;
+
+		if( nID >= nMaxDsp*2 ){
+			SetTextColor( (HDC)wParam, RGB( 0, 0, 255 ) );
+		}
+		else if( nID >= nMaxDsp ){
+			SetTextColor( (HDC)wParam, RGB( 116, 80, 48 ) );
+		}
+
+		if( nID % 2 ){
+			SetBkColor( (HDC)wParam, RGB( 255, 200, 200 ) );
+			hBrush = hDEditBrush;
+		}
+
+		return (LRESULT)hBrush;
+
+		}// WM_CTLCOLORSTATIC
 		break;
 
 	case WM_SIZE:
