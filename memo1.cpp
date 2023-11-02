@@ -17,6 +17,13 @@
 #include	"memo1.h"
 
 #define	WM_RETURN	WM_USER+0x100
+	// エディトコントロール内でリターンキーが押された、もしくはその同等状態
+#define	WM_SAVE		WM_USER+0x101
+	// 保存処理のみを行う
+#define	WM_EDITEND	WM_USER+0x102
+	// エディット窓終了依頼
+#define	WM_DSPEND	WM_USER+0x103
+	// 過去メモ表示窓終了依頼
 
 
 
@@ -45,6 +52,8 @@ WNDPROC	OldDEditWndProc;
 #define	BUFFERSIZE	MEMOSIZE+100
 char	buffer[ BUFFERSIZE + 1 ];
 
+
+
 // 過去メモの表示
 const DWORD	nMaxDsp = 50;	// 最大表示行数
 const DWORD	nMaxRead = nMaxDsp * 2;	// 最大読み込み行数
@@ -54,11 +63,15 @@ int		DspY = 100;
 int		DspWidth = 1000;
 int		DspHeight = 600;
 
+int		LineHeight = 20;	// 1行の高さ GetTextMetrics()
+
+DWORD	nReadLine = 0;	// 読み込んでいる行数
 DWORD	nCrntDsp = 0;
 
 //HWND	hwndStatic[ nMaxDsp ];
 //HWND	hwndDEdit[ nMaxDsp ];
 
+// 読み込んだ各行についての情報
 struct MemoInfo {
 	MemoInfo *	pPrev = NULL;
 	MemoInfo *	pNext = NULL;
@@ -114,19 +127,21 @@ struct MemoInfo {
 };
 
 MemoInfo *	pTopMemoData = NULL;
+MemoInfo *	pDspTopMemoData = NULL;		// 表示行の先頭
 MemoInfo *	pLastMemoData = NULL;
 
+// 表示する各行についてのコメント
 struct DspInfo {
 	HWND	hwndStatic;		// メモの表示
 	HWND	hwndDEdit;		// メモの編集
 	HWND	hwndSLNum;		// 行番号の表示
 	HWND	hwndSDT;		// 日付時刻の表示
-	MemoInfo *	pMemo;		// メモの情報
+	MemoInfo *	pMemo;		// 表示するメモの情報
 };
 DspInfo		DspData[ nMaxDsp ];
 
 int		fDspEdit = 0;		// 過去メモ編集中
-int		nCrntDEdit = 0;		// 表示中の過去メモエディット
+DWORD	nCrntDEdit = 0;		// 表示中の過去メモエディット
 
 HBRUSH	hDEditBrush;
 
@@ -505,10 +520,11 @@ int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 			// 半分を別ファイルに保存する
 			DWORD	nS = SaveLines( 1, 1, pTopMemoData, nMaxRead/2 );
 			if( nS != nMaxRead/2 )	fError = 1;
+			nLine -= nMaxRead/2;
 		}
 		if( ! fError ){
 			// 先頭から削除
-			for( int i=0; i<nMaxDsp/2; ++i ){
+			for( int i=0; i<nMaxRead/2; ++i ){
 				MemoInfo *	pm = pTopMemoData->pNext;
 				delete	pTopMemoData;
 				pTopMemoData = pm;
@@ -517,12 +533,14 @@ int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 			}//for
 		}// if
 		// 読み込み
-		nLine = ReadBufferLine( p, &pp, nMaxRead/2 );
-		if( nLine < nMaxRead/2 )	break;
+		int	nL = ReadBufferLine( p, &pp, nMaxRead/2 );
+		nLine += nL;
+		if( nL < nMaxRead/2 )	break;
 		p = pp;
 		pp = pE;
 		}//while TRUE
 	}// if
+	nReadLine = nLine;
 
 	delete[] pb;
 
@@ -544,8 +562,9 @@ int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 	{
 	char * pt = AppName;
 	if( pLastMemoData != NULL ){
-		wsprintf( buffer, "%s    RETURN for SAVE  R-BUTTON for MENU      "
-									"%-100s", AppName, pLastMemoData->pText );
+		wsprintf( buffer, "%s  %d/%d    RETURN for SAVE  R-BUTTON for MENU"
+																"      %-100s",
+						AppName, nReadLine, nMaxDsp, pLastMemoData->pText );
 		pt = buffer;
 	}
 	hwndMain = CreateWindowEx( WS_EX_CLIENTEDGE, ClassName, pt,
@@ -690,6 +709,8 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 		}	// WM_RBUTTONDOWN
 		break;
 
+/*
+
 	case WM_COMMAND:
 		{
 
@@ -707,20 +728,9 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 
 		switch( LOWORD( wParam ) ){
 
-		case IDM_OPEN:
+		case IDM_TEST:
 			{
-
-			MessageBox( NULL, "IDM_OPEN", AppName, MB_OK );
-
-			}// end IDM_OPEN
-			break;
-
-		case IDM_EXIT:
-			{
-
-			DestroyWindow( hWnd );
-
-			}// IDM_EXIT
+			}// IDM_TEST
 			break;
 
 		default:
@@ -731,8 +741,14 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 		}// end WM_COMMAND
 		break;
 
-	case WM_RETURN:
+*/
+
+	case WM_SAVE:
 		{
+
+		if(  GetWindowText( hwndEdit, buffer, MEMOSIZE ) == 0  ){
+			break;
+		}
 
 		SYSTEMTIME	dt;
 		GetLocalTime( &dt );
@@ -740,37 +756,65 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 		wsprintf(  buf,  "%04d/%02d/%02d %02d:%02d:%02d",
 			dt.wYear, dt.wMonth, dt.wDay,  dt.wHour, dt.wMinute, dt.wSecond );
 
-		if(  GetWindowText( hwndEdit, buffer, MEMOSIZE ) == 0  ){
-			PostQuitMessage( NULL );
-			break;
-		}
-
 		MemoInfo *	pMemo = new MemoInfo( buf, buffer );
 		if( pMemo == NULL )		break;
 		if( pMemo->fError ){  delete pMemo;  break;  }
 
-		//MessageBox( NULL, buffer, AppName, MB_OK );
-
 		SaveLines( 0, 0, pMemo, 1 );
 
 		delete pMemo;
+
+		SetWindowText( hwndEdit, "" );
+
+		}// WM_SAVE
+		break;
+
+	case WM_RETURN:
+		{
+
+		SendMessage( hWnd, WM_SAVE, 0, 0 );
 
 		PostQuitMessage( NULL );
 
 		}// WM_RETURN
 		break;
 
-	case WM_DESTROY:
+	case WM_DSPEND:
 		{
-		PostQuitMessage( NULL );
-		}// end
+
+		// 過去メモ表示窓終了処理
+		if( hwndDsp != NULL )	DestroyWindow( hwndDsp );
+		hwndDsp = NULL;
+
+		}// WM_DSPEND
 		break;
 
-	case WM_QUIT:
+	case WM_CLOSE:
 		{
+
 		fDspWndQuit = 1;
-		DestroyWindow( hwndDsp );
+
+		if( hwndDsp != NULL )	SendMessage( hwndDsp, WM_CLOSE, 0, 0 );
+		if( hwndDsp != NULL )	break;	// 拒否された
+
+		SendMessage( hWnd, WM_SAVE, 0, 0 );
+
+		DestroyWindow( hWnd );
+
 		}
+		break;
+
+	case WM_DESTROY:
+		{
+
+		// 破棄を拒否できない
+
+		if( hwndDsp != NULL )		SendMessage( hWnd, WM_SAVE, 0, 0 );
+		SendMessage( hWnd, WM_SAVE, 0, 0 );
+
+		PostQuitMessage( NULL );	// メッセージループを抜ける
+
+		}// end
 		break;
 
 	default:
@@ -788,9 +832,41 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 
 
 
+// 行にテキストをセットする SetTextLine()						//TAG_JUMP_MARK
+//	nl : 行番号(0～)
+void SetTextLine( int nl, DspInfo * pdd, MemoInfo * pmd )
+{
+
+	if( nl < 0 )				return;
+	if( pdd == NULL )			return;
+	if( pmd == NULL )			return;
+	if( pmd->pMemo == NULL )	return;
+
+	pdd->pMemo = pmd;
+
+	char	buf[100];
+	wsprintf( buf, "%d  ", nl+1 );
+	SetWindowText( pdd->hwndSLNum, buf );
+
+	wsprintf( buf, "%s   ", pmd->pDateTime );
+	SetWindowText( pdd->hwndSDT, buf );
+
+	SetWindowText( pdd->hwndStatic, pmd->pMemo );
+	SetWindowText( pdd->hwndDEdit, pmd->pMemo );
+
+}
+// void SetTextLine( DspInfo * pdd, MemoInfo * pmd )
+
+
+
 LRESULT CALLBACK DspWndProc(
 						HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 {
+
+	static SCROLLINFO	ssi;
+	static int			snMaxDisp;	// 最大表示可能行数
+	static int			snPos;		// スクロール位置、１行目に表示する行の番号
+	static int			snMaxPos;	// snPosの最大値+1
 
 
 	switch( uMsg ){
@@ -798,31 +874,52 @@ LRESULT CALLBACK DspWndProc(
 	case WM_CREATE:
 		{
 
+		// クライアント領域の高さを行の高さの倍数にする。
+		RECT	r;
+		GetClientRect( hWnd, &r );	// 左上座標、幅、高さ
+		snMaxDisp = r.bottom / LineHeight;
+		snMaxPos = nReadLine - snMaxDisp;	// nPosの最大値+1
+		snPos = 0;
+		int		def = r.bottom - snMaxDisp * LineHeight;
+
+		GetWindowRect( hWnd, &r );	// 左上座標、右下座標+1
+		MoveWindow( hWnd,
+			r.left, r.top, r.right - r.left, r.bottom - r.top - def, TRUE );
+						// 左上座標、幅、高さ
+
+		ssi.cbSize = sizeof(SCROLLINFO);
+		ssi.fMask = SIF_POS | SIF_RANGE | SIF_PAGE ;
+		ssi.nPos = snPos;
+		ssi.nMin = 0;
+		ssi.nMax = nReadLine;
+		ssi.nPage = snMaxDisp;
+		SetScrollInfo( hWnd, SB_VERT, &ssi, TRUE );
+
 		int		x = 0;
 		int		y = 0;
 		MemoInfo *	pM = pLastMemoData;
-		for( int i=0; i < 25; ++i ){
+		pDspTopMemoData = pM;
+		for( int i=0; i < snMaxDisp; ++i ){
 			DspData[i].hwndSLNum = CreateWindowEx( NULL, "STATIC", NULL,
 				WS_CHILD | WS_VISIBLE | SS_RIGHT,
-				0, 20*i, 40, 20, hWnd, (HMENU)(i+nMaxDsp*2), hInstance, NULL );
+				0, LineHeight*i, 40, LineHeight,
+				hWnd, (HMENU)(i+nMaxDsp*2), hInstance, NULL );
 			DspData[i].hwndSDT = CreateWindowEx( NULL, "STATIC", NULL,
 				WS_CHILD | WS_VISIBLE | SS_RIGHT,
-				40, 20*i, 170, 20, hWnd, (HMENU)(i+nMaxDsp), hInstance, NULL );
+				40, LineHeight*i, 170, LineHeight,
+				hWnd, (HMENU)(i+nMaxDsp), hInstance, NULL );
 			DspData[i].hwndStatic = CreateWindowEx( NULL, "STATIC", NULL,
 				WS_CHILD | WS_VISIBLE | SS_NOTIFY,
-				210, 20*i, 1000, 20, hWnd, (HMENU)i, hInstance, NULL );
+				210, LineHeight*i, 1000, LineHeight,
+				hWnd, (HMENU)i, hInstance, NULL );
 			DspData[i].hwndDEdit = CreateWindowEx( NULL, EditClass, NULL,
 				WS_CHILD | ES_AUTOHSCROLL ,
-				210, 20*i, 770, 20, hWnd, (HMENU)i, hInstance, NULL );
+				210, LineHeight*i, 770, LineHeight,
+				hWnd, (HMENU)i, hInstance, NULL );
 			if( pM == NULL )	continue;
-			DspData[i].pMemo = pM;
-			char	buf[100];
-			wsprintf( buf, "%d  ", i+1 );
-			SetWindowText( DspData[i].hwndSLNum, buf );
-			wsprintf( buf, "%s   ", pM->pDateTime );
-			SetWindowText( DspData[i].hwndSDT, buf );
-			SetWindowText( DspData[i].hwndStatic, pM->pMemo );
-			SetWindowText( DspData[i].hwndDEdit, pM->pMemo );
+
+			SetTextLine( i, &DspData[i], pM );	// 行にテキストをセット
+
 			// サブクラス化
 			OldDEditWndProc = (WNDPROC)SetWindowLong(
 					DspData[i].hwndDEdit, GWL_WNDPROC, (DWORD)DEditWndProc );
@@ -872,7 +969,27 @@ LRESULT CALLBACK DspWndProc(
 
 		//MoveWindow( hwndEditD, 0, 0, lParam&0xffff, lParam>>16, TRUE );
 
+		// クライアント領域の高さを行の高さの倍数にする。
 		RECT	r;
+		GetClientRect( hWnd, &r );
+		snMaxDisp = r.bottom / LineHeight;
+		snMaxPos = nReadLine - snMaxDisp;	// nPosの最大値+1
+		int		def = r.bottom - snMaxDisp * LineHeight;
+
+		GetWindowRect( hWnd, &r );	// 左上座標、右下座標+1
+		MoveWindow( hWnd,
+			r.left, r.top, r.right - r.left, r.bottom - r.top  - def, TRUE );
+						// 左上座標、幅、高さ
+
+		ssi.cbSize = sizeof(SCROLLINFO);
+		ssi.fMask = SIF_POS | SIF_RANGE | SIF_PAGE ;
+		ssi.nPos = snPos;
+		ssi.nMin = 0;
+		ssi.nMax = nReadLine;
+		ssi.nPage = snMaxDisp;
+		SetScrollInfo( hWnd, SB_VERT, &ssi, TRUE );
+		UpdateWindow( hWnd );
+
 		GetWindowRect( hWnd, &r );
 		DspX = r.left;
 		DspY = r.top;
@@ -912,6 +1029,59 @@ LRESULT CALLBACK DspWndProc(
 		}	// WM_RBUTTONDOWN
 		break;
 
+	case WM_VSCROLL:
+		{
+
+		int		dy;
+
+		switch( LOWORD(wParam) ){
+
+		case SB_LINEUP:		dy = -1;						break;
+		case SB_LINEDOWN:	dy = 1;							break;
+		case SB_PAGEUP:		dy = -1 * ssi.nPage;			break;
+		case SB_PAGEDOWN:	dy = 1 * ssi.nPage;				break;
+		case SB_TOP:		dy = -snPos;					break;
+		case SB_BOTTOM:		dy = nReadLine - snPos;			break;
+		case SB_THUMBTRACK:	dy = HIWORD(wParam) - ssi.nPos;	break;
+		default:			dy = 0;							break;
+
+		}// switch
+
+		if( dy == 0 )	return 0;
+
+		int	n = snPos + dy;
+		if( n < 0 )				n = 0;
+		if( n > snMaxPos )		n = snMaxPos;
+		dy = n - snPos;
+
+		//printf( "nPos = %d  n = %d  dy = %d  nMaxLine = %d\n",
+		//											nPos, n, dy, nMaxLine );
+
+		if( dy == 0 )	return 0;
+		if( n == snPos )	return 0;
+
+		//printf( "nPos = %d  n = %d  dy = %d  nMaxLine = %d\n",
+		//											nPos, n, dy, nMaxLine );
+
+		ssi.nPos = n;
+		snPos = n;
+		SetScrollInfo( hWnd, SB_VERT, &ssi, TRUE );
+
+		MemoInfo *pM = pLastMemoData;
+		for( int i=0; i<nReadLine; ++i ){
+			if( i == snPos )	break;
+			pM = pM->pPrev;
+		}
+
+		for( int i=0; i < snMaxDisp; ++i ){
+			if( pM == NULL )	break;
+			SetTextLine( i+snPos, &DspData[i], pM );
+			pM = pM->pPrev;
+		}// for
+
+		}// WM_VSCROLL
+		return 0;
+
 	case WM_COMMAND:
 		{
 
@@ -922,16 +1092,30 @@ LRESULT CALLBACK DspWndProc(
 			switch( HIWORD(wParam) ){
 			case STN_CLICKED:
 				{
-				if( fDspEdit )		break;
-				fDspEdit = 1;
+				if( fDspEdit ){
+					// すでにどこかが編集中
+					break;
+				}
 				nCrntDEdit = LOWORD(wParam);
+				if( nCrntDEdit >= nMaxDsp ){
+					// 変数値が異常
+					break;
+				}
+				if( DspData[nCrntDEdit].pMemo == NULL ){
+					// 未使用欄、もしくは状態異常欄
+					break;
+				}
+				fDspEdit = 1;
 				ShowWindow( DspData[nCrntDEdit].hwndDEdit, SW_SHOW );
+				ShowWindow( DspData[nCrntDEdit].hwndStatic, SW_HIDE );
 				SetFocus( DspData[nCrntDEdit].hwndDEdit );
 				}// STN_CLICKED
 				break;
 			}// switch
 			break;
 		}
+
+/*
 
 		if( HIWORD( wParam ) != 0 ){
 			// HIWORD( wParam ) : アクセラレータのメッセージ
@@ -940,20 +1124,9 @@ LRESULT CALLBACK DspWndProc(
 
 		switch( LOWORD( wParam ) ){
 
-		case IDM_OPEND:
+		case IDM_TESTD:
 			{
-
-			MessageBox( NULL, "IDM_OPEND", AppName, MB_OK );
-
-			}// end IDM_OPEND
-			break;
-
-		case IDM_EXITD:
-			{
-
-			DestroyWindow( hWnd );
-
-			}// IDM_EXITD
+			}// IDM_TESTD
 			break;
 
 		default:
@@ -961,10 +1134,22 @@ LRESULT CALLBACK DspWndProc(
 
 		}// switch
 
+*/
+
 		}// end WM_COMMAND
 		break;
 
-	case WM_RETURN:
+	case WM_EDITEND:
+		{
+
+		fDspEdit = 0;
+		ShowWindow( DspData[nCrntDEdit].hwndDEdit, SW_HIDE );
+		ShowWindow( DspData[nCrntDEdit].hwndStatic, SW_SHOW );
+
+		}// WM_ENDEDIT
+		break;
+
+	case WM_SAVE:
 		{
 
 		DspInfo *	pdd = &DspData[nCrntDEdit];
@@ -972,33 +1157,75 @@ LRESULT CALLBACK DspWndProc(
 
 		fDspEdit = 0;
 		ShowWindow( pdd->hwndDEdit, SW_HIDE );
+		ShowWindow( pdd->hwndStatic, SW_SHOW );
 
 		// 変更された?
 		GetWindowText( pdd->hwndDEdit, buffer, MEMOSIZE );
-		if( lstrcmp( pM->pMemo, buffer ) == 0 )		break;
+		if( lstrcmp( pM->pMemo, buffer ) == 0 ){
+			break;
+		}
 		int	n = lstrlen( buffer );
 
 		delete[] pM->pMemo;
 		pM->pMemo = new char[ n+10 ];
-		if( pM->pMemo == NULL )		break;
+		if( pM->pMemo == NULL ){
+			break;
+		}
 		GetWindowText( pdd->hwndDEdit, pM->pMemo, n+10 );
 
 		delete[] pM->pText;
 		pM->pText = new char[ n+30+10 ];
-		if( pM->pText == NULL )		break;
+		if( pM->pText == NULL ){
+			break;
+		}
 		wsprintf( pM->pText, "%s  %s", pM->pDateTime, pM->pMemo );
-		SetWindowText( pdd->hwndStatic, pM->pText );
+		SetWindowText( pdd->hwndStatic, pM->pMemo );
 
 		SaveLines( 0, 1, pTopMemoData, nMaxDsp*2 );
+
+		}// WM_SAVE
+		break;
+
+	case WM_RETURN:
+		{
+
+		int		d = MessageBox( hwndDsp,
+					"Save ?", AppName, MB_YESNOCANCEL | MB_ICONQUESTION );
+		if( d == IDCANCEL )		break;
+		if( d == IDNO ){
+			SendMessage( hwndDsp, WM_EDITEND, 0, 0 );
+			break;
+		}
+
+		SendMessage( hWnd, WM_SAVE, 0, 0 );
+
+		SendMessage( hwndDsp, WM_EDITEND, 0, 0 );
 
 		}// WM_RETURN
 		break;
 
+	case WM_CLOSE:
+		{
+		if( fDspEdit ){
+			SendMessage( hWnd, WM_RETURN, 0, 0 );
+			if( fDspEdit )	break;	// 破棄拒否
+			//DestroyWindow( hWnd );
+			SendMessage( hwndMain, WM_DSPEND, 0, 0 );
+		}
+		else{
+			//DestroyWindow( hWnd );
+			SendMessage( hwndMain, WM_DSPEND, 0, 0 );
+		}
+		}// WM_DESTROY
+		break;
+
 	case WM_DESTROY:
 		{
-		fDspEdit = 0;
-		DestroyWindow( hWnd );
+		if( fDspEdit ){
+			// 破棄を拒否できない
+			SendMessage( hWnd, WM_RETURN, 0, 0 );
 		}
+		}// WM_DESTROY
 		break;
 
 	default:
@@ -1111,10 +1338,76 @@ LRESULT CALLBACK EditWndProc(
 			}// IDM_SAVE
 			break;
 
+		case IDM_PASTE:
+			{
+
+			SendMessage( hwndEdit, WM_PASTE, 0, 0 );
+
+			}// IDM_PASTE
+			break;
+
+		case IDM_SLCTA:
+			{
+
+			SendMessage( hwndEdit, EM_SETSEL, 0, -1 );
+
+			}// IDM_SLCTA
+			break;
+
+		case IDM_SLCTC:
+			{
+
+			SendMessage( hwndEdit, EM_SETSEL, 0, 0 );
+
+			}// IDM_SLCTC
+			break;
+
+		case IDM_COPY:
+			{
+
+			SendMessage( hwndEdit, WM_COPY, 0, 0 );
+
+			}// IDM_COPY
+			break;
+
+		case IDM_CUT:
+			{
+
+			SendMessage( hwndEdit, WM_CUT, 0, 0 );
+
+			}// IDM_CUT
+			break;
+
+		case IDM_UNDO:
+			{
+
+			SendMessage( hwndEdit, WM_UNDO, 0, 0 );
+
+			}// IDM_UNDO
+			break;
+
+		case IDM_EXIT:
+			{
+
+			SendMessage( hwndMain, WM_RETURN, 0, 0 );
+
+			}// IDM_EXIT
+			break;
+
+		case IDM_EXITWS:
+			{
+
+			SetWindowText( hwndEdit, "" );
+			SendMessage( hwndMain, WM_RETURN, 0, 0 );
+
+			}// IDM_EXITWS
+			break;
+
 		default:
 			{
 
-			DestroyWindow( hwndMain );
+			return CallWindowProc(
+							OldEditWndProc, hWnd, uMsg, wParam, lParam );
 
 			}
 
@@ -1202,17 +1495,61 @@ LRESULT CALLBACK DEditWndProc(
 		case IDM_EXITD:
 			{
 
-			DestroyWindow( hWnd );
+			SendMessage( hwndDsp, WM_EDITEND, 0, 0 );
 
 			}// IDM_EXIT
 			break;
 
-		default:
+		case IDM_PASTED:
 			{
 
-			DestroyWindow( hWnd );
+			SendMessage( DspData[nCrntDEdit].hwndDEdit, WM_PASTE, 0, 0 );
 
-			}
+			}// IDM_PASTED
+			break;
+
+		case IDM_SLCTAD:
+			{
+
+			SendMessage( DspData[nCrntDEdit].hwndDEdit, EM_SETSEL, 0, -1 );
+
+			}// IDM_SLCTAD
+			break;
+
+		case IDM_SLCTCD:
+			{
+
+			SendMessage( DspData[nCrntDEdit].hwndDEdit, EM_SETSEL, 0, 0 );
+
+			}// IDM_SLCTCD
+			break;
+
+		case IDM_COPYD:
+			{
+
+			SendMessage( DspData[nCrntDEdit].hwndDEdit, WM_COPY, 0, 0 );
+
+			}// IDM_COPYD
+			break;
+
+		case IDM_CUTD:
+			{
+
+			SendMessage( DspData[nCrntDEdit].hwndDEdit, WM_CUT, 0, 0 );
+
+			}// IDM_CUTD
+			break;
+
+		case IDM_UNDOD:
+			{
+
+			SendMessage( DspData[nCrntDEdit].hwndDEdit, WM_UNDO, 0, 0 );
+
+			}// IDM_UNDOD
+			break;
+
+		default:
+			break;
 
 		}// switch
 

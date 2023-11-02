@@ -1,6 +1,20 @@
 
 
 
+全て選択、コピー、貼り付け、選択解除、切り取り、アンドゥ、保存なし終了のメニューをメインと過去メモ表示のエディットに追加。
+過去メモウインドウをスクロールさせる。
+セーブしないで終了した時はメモをセーブするようにした。
+読み込んだ行数をタイトルに表示。
+WM_EDITEND,WM_DSPEND追加。
+メイン窓と過去メモ窓の終了処理の実装。
+
+
+
+起動するとすぐにメモの入力ができ、そのまま終了するとメモを保存して終了する。再び起動すると前回入力したメモがタイトルバーに表示され、過去のメモの一覧表示もある。
+As soon as you start it up, you can enter a memo, and when you exit it, it saves the memo and exits. When you restart the app, the last memo you entered will be displayed in the title bar, and a list of past memos will can be displayed.
+
+
+
 最新のメモを一番上に表示。
 過去メモ表示に行番号を表示。
 過去メモ表示の背景色を１行ごとに変更。
