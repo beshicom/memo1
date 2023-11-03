@@ -29,6 +29,7 @@
 #define	IDM_SLCTA	40800
 #define	IDM_SLCTC	40900
 #define	IDM_UNDO	41000
+#define	IDM_ABOUT	41800
 #define	IDM_EXIT	41900
 #define	IDM_EXITWS	41910
 #define	IDM_TEST	41999

@@ -7,12 +7,17 @@
 //	since 2023/10/16 by beshi
 //
 
+double	ProgVersion = 0.001;
+double	DataVersion = 0.001;
+
 
 
 #include	<windows.h>
 #include	<shlobj.h>
+#include	<commdlg.h>
 #include	<direct.h>
 #include	<time.h>
+#include	<stdio.h>
 
 #include	"memo1.h"
 
@@ -160,7 +165,23 @@ struct ConfigInfo {
 	int		DspY;
 	int		DspWidth;
 	int		DspHeight;
+	// バージョン
+	double	DataVersion;
+	double	ProgVersion;
+	// 余白
+	char	dummy[100];
 };
+struct SaveInfo {
+	ConfigInfo	cd;
+	char		dummy[500];
+};
+
+
+
+char	FilterString[] =
+	"Text Files" "\0"	"*.txt" "\0"
+	"All Files" "\0"	"*.*" "\0"
+	"\0";
 
 
 
@@ -223,14 +244,11 @@ char * SkipCRLF ( char * pText )
 
 
 
-//
-// データファイルのフルパスを得る BCCGetDataPath0()				//TAG_JUMP_MARK
-//
-BOOL  BCCGetDataPath0(  char *pBuf,  char *pFileName  )
+char * GetAppDataFolder( char * pBuf )
 {
-	if( pBuf == NULL )						return(  0  );
-	if( pFileName == NULL )					return(  0  );
-	if( *pFileName == 0 )					return(  0  );
+
+	if( pBuf == NULL )			return NULL;
+
 	SHGetFolderPath(
 		NULL,			//HWND   hwndOwner,
 		CSIDL_APPDATA,	//int    nFolder,
@@ -239,6 +257,22 @@ BOOL  BCCGetDataPath0(  char *pBuf,  char *pFileName  )
 		pBuf			//LPTSTR pszPath
 	);
 	lstrcat( pBuf, "\\MEMO1" );
+
+	return pBuf;
+
+}
+
+
+
+//
+// データファイルのフルパスを得る BCCGetDataPath0()				//TAG_JUMP_MARK
+//
+BOOL  BCCGetDataPath0(  char *pBuf,  char *pFileName  )
+{
+	if( pBuf == NULL )						return(  0  );
+	if( pFileName == NULL )					return(  0  );
+	if( *pFileName == 0 )					return(  0  );
+	GetAppDataFolder( pBuf );
 	char	mp[ MAX_PATH + 32 ];
 	getcwd( mp, MAX_PATH );
 	if(  chdir( pBuf )  !=  0  )	mkdir( pBuf );
@@ -341,7 +375,7 @@ DWORD SaveLines( int nFile, int nMode, MemoInfo * pMemo, int nLine )
 	if( nFile == 0 )	BCCGetDataPath( path );
 	else{
 		char	fn[ MAX_PATH ];
-		wsprintf( fn, "MEMO1TXT%d.TXT", time(NULL) );
+		wsprintf( fn, "MEMO1PastMemos%d.TXT", time(NULL) );
 		Sleep( 1000 );
 		BCCGetDataPath0( path, fn );
 	}
@@ -587,20 +621,23 @@ int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 	// 設定データ保存
 	while(TRUE){
 
-	ConfigInfo	cd;
-	cd.Magic[0] = 'M';
-	cd.Magic[1] = 'E';
-	cd.Magic[2] = 'M';
-	cd.Magic[3] = 'O';
-	cd.Magic[4] = '1';
-	cd.MainX = MainX;
-	cd.MainY = MainY;
-	cd.MainWidth = MainWidth;
-	cd.MainHeight = MainHeight;
-	cd.DspX = DspX;
-	cd.DspY = DspY;
-	cd.DspWidth = DspWidth;
-	cd.DspHeight = DspHeight;
+	SaveInfo	sd;
+	ZeroMemory( &sd, sizeof(SaveInfo) );
+	sd.cd.Magic[0] = 'M';
+	sd.cd.Magic[1] = 'E';
+	sd.cd.Magic[2] = 'M';
+	sd.cd.Magic[3] = 'O';
+	sd.cd.Magic[4] = '1';
+	sd.cd.MainX = MainX;
+	sd.cd.MainY = MainY;
+	sd.cd.MainWidth = MainWidth;
+	sd.cd.MainHeight = MainHeight;
+	sd.cd.DspX = DspX;
+	sd.cd.DspY = DspY;
+	sd.cd.DspWidth = DspWidth;
+	sd.cd.DspHeight = DspHeight;
+	sd.cd.DataVersion = DataVersion;
+	sd.cd.ProgVersion = ProgVersion;
 
 	char	path[ MAX_PATH ];
 	BCCGetConfigPath( path );
@@ -609,7 +646,7 @@ int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 	if( hFile == INVALID_HANDLE_VALUE )	break;
 	DWORD	bytesWrite;
 	/* BOOL fOK = */
-	WriteFile( hFile, &cd, sizeof(ConfigInfo), &bytesWrite, NULL );
+	WriteFile( hFile, &sd, sizeof(SaveInfo), &bytesWrite, NULL );
 	CloseHandle( hFile );
 
 	break;
@@ -657,7 +694,7 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 	case WM_CTLCOLOREDIT:
 		{
 
-		SetTextColor( (HDC)wParam, RGB(255,255,0) );
+		SetTextColor( (HDC)wParam, RGB(255,255,100) );
 		SetBkColor( (HDC)wParam, RGB(0,0,0) );
 		return (LRESULT)GetStockObject( BLACK_BRUSH );
 
@@ -932,7 +969,7 @@ LRESULT CALLBACK DspWndProc(
 	case WM_CTLCOLOREDIT:
 		{
 
-		SetTextColor( (HDC)wParam, RGB(255,255,0) );
+		SetTextColor( (HDC)wParam, RGB(255,255,100) );
 		SetBkColor( (HDC)wParam, RGB(0,0,0) );
 		return (LRESULT)GetStockObject( BLACK_BRUSH );
 
@@ -1298,7 +1335,23 @@ LRESULT CALLBACK EditWndProc(
 		case IDM_OPEN:
 			{
 
-			MessageBox( NULL, "IDM_OPEN", AppName, MB_OK );
+			OPENFILENAME	ofn;
+			ZeroMemory( &ofn, sizeof(OPENFILENAME) );
+			char			dir[ MAX_PATH ];
+			GetAppDataFolder( dir );
+			char			buffer[ MAX_PATH ];
+			ofn.lStructSize = sizeof(OPENFILENAME);
+			ofn.hwndOwner = hWnd;
+			ofn.hInstance = hInstance;
+			ofn.lpstrFilter = FilterString;
+			ofn.lpstrFile = buffer;
+			ofn.nMaxFile = MAX_PATH;
+			ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST |
+							OFN_LONGNAMES | OFN_EXPLORER | OFN_HIDEREADONLY ;
+			ofn.lpstrTitle = "past memos";
+			ofn.lpstrInitialDir = dir;
+			if( ! GetOpenFileName( &ofn ) )		break;
+			ShellExecute( hWnd, "open", buffer, NULL, NULL, SW_SHOWNORMAL );
 
 			}// end IDM_OPEN
 			break;
@@ -1401,6 +1454,21 @@ LRESULT CALLBACK EditWndProc(
 			SendMessage( hwndMain, WM_RETURN, 0, 0 );
 
 			}// IDM_EXITWS
+			break;
+
+		case IDM_ABOUT:
+			{
+			char	buf[1000];
+			sprintf( buf,
+				"Memo1 : 1 line memo\n\n"
+				"Program  Version : %g\n"
+				"SaveData Version : %g\n"
+				,
+				ProgVersion,
+				DataVersion
+			);
+			MessageBox( NULL, buf, AppName, MB_OK );
+			}// IDM_ABOUT
 			break;
 
 		default:
