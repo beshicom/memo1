@@ -7,7 +7,7 @@
 //	since 2023/10/16 by beshi
 //
 
-double	ProgVersion = 0.001;
+double	ProgVersion = 0.002;
 double	DataVersion = 0.001;
 
 
@@ -424,7 +424,8 @@ int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 												char * CmdLine, int CmdShow )
 {
 
-	hInstance = hInst;
+	//hInstance = hInst;
+	hInstance = GetModuleHandle( NULL );
 
 	{
 	char	buf[100];
@@ -442,12 +443,13 @@ int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 	wc.lpfnWndProc = WndProc;
 	wc.cbClsExtra = 0;
 	wc.cbWndExtra = 0;
-	wc.hInstance = hInst;
-	wc.hbrBackground = (HBRUSH)COLOR_APPWORKSPACE;
+	wc.hInstance = hInstance;
+	//wc.hbrBackground = (HBRUSH)COLOR_APPWORKSPACE;
+	wc.hbrBackground = (HBRUSH)GetStockObject( BLACK_BRUSH );
 	//wc.lpszMenuName = MAKEINTRESOURCE( IDR_MAINMENU );
 	wc.lpszMenuName = NULL;
 	wc.lpszClassName = ClassName;
-	wc.hIcon = LoadIcon( hInst, MAKEINTRESOURCE(IDR_ICON) );
+	wc.hIcon = LoadIcon( hInstance, MAKEINTRESOURCE(IDR_ICON) );
 	wc.hIconSm = wc.hIcon;
 	wc.hCursor = LoadCursor( NULL, IDC_ARROW );
 	if( RegisterClassEx( &wc ) == 0 ){
@@ -465,12 +467,12 @@ int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 	wc.lpfnWndProc = DspWndProc;
 	wc.cbClsExtra = 0;
 	wc.cbWndExtra = 0;
-	wc.hInstance = hInst;
+	wc.hInstance = hInstance;
 	wc.hbrBackground = (HBRUSH)COLOR_APPWORKSPACE;
 	//wc.lpszMenuName = MAKEINTRESOURCE( IDR_MAINMENU );
 	wc.lpszMenuName = NULL;
 	wc.lpszClassName = DspWndCN;
-	wc.hIcon = LoadIcon( hInst, MAKEINTRESOURCE(IDR_ICON) );
+	wc.hIcon = LoadIcon( hInstance, MAKEINTRESOURCE(IDR_ICON) );
 	wc.hIconSm = wc.hIcon;
 	wc.hCursor = LoadCursor( NULL, IDC_ARROW );
 	if( RegisterClassEx( &wc ) == 0 ){
@@ -601,10 +603,11 @@ int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 						AppName, nReadLine, nMaxDsp, pLastMemoData->pText );
 		pt = buffer;
 	}
+	//MainHeight = 80;
 	hwndMain = CreateWindowEx( WS_EX_CLIENTEDGE, ClassName, pt,
 		WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE ,
 		MainX, MainY, MainWidth, MainHeight,
-		NULL, NULL, hInst, NULL );
+		NULL, NULL, hInstance, NULL );
 	//ShowWindow( hwnd, CmdShow );
 	//UpdateWindow( hwnd );
 	}
@@ -681,12 +684,23 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 
 		hwndEdit = CreateWindowEx( NULL, EditClass, NULL,
 			WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL ,
-			0, 0, 0, 0, hWnd, NULL, hInstance, NULL );
-		SetFocus( hwndEdit );
+			0, 0, CW_USEDEFAULT, CW_USEDEFAULT, hWnd, NULL, hInstance, NULL );
+
+		/*
+		HDC	hdc = GetDC( hWnd );
+		TEXTMETRIC	tm;
+		GetTextMetrics( hdc, &tm );
+		RECT	r;
+		GetWindowRect( hwndEdit, &r );
+		MoveWindow( hwndEdit, 0, 0, r.right, tm.tmHeight, TRUE );
+		ReleaseDC( hWnd, hdc );
+		*/
 
 		// サブクラス化
 		OldEditWndProc = (WNDPROC)SetWindowLong(
 								hwndEdit, GWL_WNDPROC, (DWORD)EditWndProc );
+
+		SetFocus( hwndEdit );
 
 		}// WM_CREATE
 		break;
@@ -704,7 +718,17 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 	case WM_SIZE:
 		{
 
-		MoveWindow( hwndEdit, 0, 0, lParam&0xffff, lParam>>16, TRUE );
+		//MoveWindow( hwndEdit, 0, 0, lParam&0xffff, lParam>>16, TRUE );
+
+		HDC	hdc = GetDC( hWnd );
+		TEXTMETRIC	tm;
+		GetTextMetrics( hdc, &tm );
+		ReleaseDC( hWnd, hdc );
+
+		int		cw = lParam & 0xffff;
+		int		ch = lParam >> 16;
+		MoveWindow( hwndEdit,
+						5, (ch-tm.tmHeight)/2, cw-10, tm.tmHeight, TRUE );
 
 		RECT	r;
 		GetWindowRect( hWnd, &r );
@@ -746,8 +770,6 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 		}	// WM_RBUTTONDOWN
 		break;
 
-/*
-
 	case WM_COMMAND:
 		{
 
@@ -770,6 +792,104 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 			}// IDM_TEST
 			break;
 
+		case IDM_OPEN:
+			{
+
+			SendMessage( hwndEdit, uMsg, wParam, lParam );
+
+			}// IDM_OPEN
+			break;
+
+		case IDM_DISP:
+			{
+
+			SendMessage( hwndEdit, uMsg, wParam, lParam );
+
+			}// IDM_DISP
+			break;
+
+		case IDM_SAVE:
+			{
+
+			// 入力された最新の1行を保存
+			SendMessage( hwndMain, WM_RETURN, 0, 0 );
+
+			}// IDM_SAVE
+			break;
+
+		case IDM_PASTE:
+			{
+
+			SendMessage( hwndEdit, WM_PASTE, 0, 0 );
+
+			}// IDM_PASTE
+			break;
+
+		case IDM_SLCTA:
+			{
+
+			SendMessage( hwndEdit, EM_SETSEL, 0, -1 );
+
+			}// IDM_SLCTA
+			break;
+
+		case IDM_SLCTC:
+			{
+
+			SendMessage( hwndEdit, EM_SETSEL, 0, 0 );
+
+			}// IDM_SLCTC
+			break;
+
+		case IDM_COPY:
+			{
+
+			SendMessage( hwndEdit, WM_COPY, 0, 0 );
+
+			}// IDM_COPY
+			break;
+
+		case IDM_CUT:
+			{
+
+			SendMessage( hwndEdit, WM_CUT, 0, 0 );
+
+			}// IDM_CUT
+			break;
+
+		case IDM_UNDO:
+			{
+
+			SendMessage( hwndEdit, WM_UNDO, 0, 0 );
+
+			}// IDM_UNDO
+			break;
+
+		case IDM_EXIT:
+			{
+
+			SendMessage( hwndMain, WM_RETURN, 0, 0 );
+
+			}// IDM_EXIT
+			break;
+
+		case IDM_EXITWS:
+			{
+
+			SetWindowText( hwndEdit, "" );
+			SendMessage( hwndMain, WM_RETURN, 0, 0 );
+
+			}// IDM_EXITWS
+			break;
+
+		case IDM_ABOUT:
+			{
+
+			SendMessage( hwndEdit, uMsg, wParam, lParam );
+
+			}// IDM_ABOUT
+			break;
+
 		default:
 			break;
 
@@ -777,8 +897,6 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 
 		}// end WM_COMMAND
 		break;
-
-*/
 
 	case WM_SAVE:
 		{
@@ -1287,6 +1405,24 @@ LRESULT CALLBACK EditWndProc(
 
 	switch( uMsg ){
 
+	case WM_CREATE:
+		{
+
+		/*
+		HDC	hdc = GetDC( hWnd );
+		TEXTMETRIC	tm;
+		GetTextMetrics( hdc, &tm );
+		RECT	r;
+		GetWindowRect( hWnd, &r );
+		MoveWindow( hWnd, 0, 0, r.right, tm.tmHeight, TRUE );
+		ReleaseDC( hWnd, hdc );
+		*/
+
+		return CallWindowProc( OldEditWndProc, hWnd, uMsg, wParam, lParam );
+
+		}// WM_CREATE
+		break;
+
 	case WM_KEYDOWN:
 		{
 
@@ -1340,6 +1476,7 @@ LRESULT CALLBACK EditWndProc(
 			char			dir[ MAX_PATH ];
 			GetAppDataFolder( dir );
 			char			buffer[ MAX_PATH ];
+			buffer[0] = 0;	// これをしないと表示されないことあり
 			ofn.lStructSize = sizeof(OPENFILENAME);
 			ofn.hwndOwner = hWnd;
 			ofn.hInstance = hInstance;
