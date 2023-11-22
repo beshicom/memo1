@@ -1,6 +1,15 @@
 
 
 
+double	ProgVersion = 0.003;
+double	DataVersion = 0.001;
+キーとホイールでスクロールできるようにした。
+Topmostモードの追加。
+過去メモファイル分割の時にファイルサイズを調整していなかったバグを修正。
+マウスホイールでもスクロールできるようにした。
+
+
+
 double	ProgVersion = 0.002;
 double	DataVersion = 0.001;
 メインのエディットの上下位置を中央にした。

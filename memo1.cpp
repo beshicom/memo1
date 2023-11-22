@@ -6,9 +6,37 @@
 //
 //	since 2023/10/16 by beshi
 //
+// C:\Users\beshi\AppData\Roaming\MEMO1\MEMO1.TXT
+//
 
-double	ProgVersion = 0.002;
+double	ProgVersion = 0.003;
 double	DataVersion = 0.001;
+
+/*
+MEMO1.CPP 108: // 読み込んだ各行についての情報 MemoInfo
+MEMO1.CPP 184: // 設定ファイル ConfigInfo
+MEMO1.CPP 217: int GetCompileTime ( char * pStr )
+MEMO1.CPP 243: // 改行コードまで移動する MoveToCRLF()
+MEMO1.CPP 260: // 改行コードをスキップする SkipCRLF()
+MEMO1.CPP 276: char * GetAppDataFolder( char * pBuf )
+MEMO1.CPP 297: // データファイルのフルパスを得る BCCGetDataPath0()
+MEMO1.CPP 318: // データファイルのフルパスを得る BCCGetDataPath()
+MEMO1.CPP 328: // 設定データファイルのフルパスを得る BCCGetConfigPath()
+MEMO1.CPP 337: // 指定行数読み込む ReadBufferLine()
+MEMO1.CPP 392: // 指定行数を保存する SaveLines()
+MEMO1.CPP 456: // WinMain()
+MEMO1.CPP 521: 	// 設定データ読み込み
+MEMO1.CPP 553: 	// 前回のメモを取得
+MEMO1.CPP 662: 	// 設定データ保存
+MEMO1.CPP 726: // ポップアップメニューの表示 DspPMenu()
+MEMO1.CPP 746: // メニュー項目の設定 SetMainMenuItem()
+MEMO1.CPP 763: // WndProc()
+MEMO1.CPP 1084: // 行にテキストをセットする SetTextLine()
+MEMO1.CPP 1111: // メニュー項目の設定 SetDspMenuItem()
+MEMO1.CPP 1128: // DspWndProc()
+MEMO1.CPP 1547: // EditWndProc()
+MEMO1.CPP 1794: // DEditWndProc()
+*/
 
 
 
@@ -36,8 +64,6 @@ HINSTANCE	hInstance;
 HWND		hwndMain;
 HWND		hwndDsp;
 
-int		fDspWndQuit = 0;
-
 char	ClassName[] = "Memo1MainClass";
 char	DspWndCN[] = "Memo1DisplayClass";
 char	ApplicationName[] = "Memo1";
@@ -47,6 +73,9 @@ int		MainX = 100;
 int		MainY = 100;
 int		MainWidth = 1000;
 int		MainHeight = 80;
+
+int		fTopmost = 0;		// 常に最上位位置の時にnot0
+int		fDspWndQuit = 0;
 
 char	EditClass[] = "EDIT";
 HWND	hwndEdit;
@@ -76,7 +105,7 @@ DWORD	nCrntDsp = 0;
 //HWND	hwndStatic[ nMaxDsp ];
 //HWND	hwndDEdit[ nMaxDsp ];
 
-// 読み込んだ各行についての情報
+// 読み込んだ各行についての情報 MemoInfo						//TAG_JUMP_MARK
 struct MemoInfo {
 	MemoInfo *	pPrev = NULL;
 	MemoInfo *	pNext = NULL;
@@ -152,7 +181,7 @@ HBRUSH	hDEditBrush;
 
 
 
-// 設定ファイル
+// 設定ファイル ConfigInfo										//TAG_JUMP_MARK
 struct ConfigInfo {
 	char	Magic[5];			// "MEMO1"
 	// メインウインドウ
@@ -185,7 +214,7 @@ char	FilterString[] =
 
 
 
-int GetCompileTime ( char * pStr )
+int GetCompileTime ( char * pStr )								//TAG_JUMP_MARK
 {
 							// 00000000001
 							// 01234567890
@@ -211,7 +240,7 @@ int GetCompileTime ( char * pStr )
 
 
 //
-// 改行コードまで移動する
+// 改行コードまで移動する MoveToCRLF()							//TAG_JUMP_MARK
 //
 char * MoveToCRLF ( char * pText )
 {
@@ -228,7 +257,7 @@ char * MoveToCRLF ( char * pText )
 
 
 //
-// 改行コードをスキップする
+// 改行コードをスキップする SkipCRLF()							//TAG_JUMP_MARK
 //
 char * SkipCRLF ( char * pText )
 {
@@ -244,7 +273,7 @@ char * SkipCRLF ( char * pText )
 
 
 
-char * GetAppDataFolder( char * pBuf )
+char * GetAppDataFolder( char * pBuf )							//TAG_JUMP_MARK
 {
 
 	if( pBuf == NULL )			return NULL;
@@ -388,6 +417,10 @@ DWORD SaveLines( int nFile, int nMode, MemoInfo * pMemo, int nLine )
 		DWORD	r = SetFilePointer( hFile, 0, NULL, FILE_END );
 		if( r == INVALID_SET_FILE_POINTER ){  CloseHandle(hFile);  return 0;  }
 	}
+	else{
+		// ファイルサイズを０に
+		SetEndOfFile( hFile );	// 現在のファイルポインタ位置にEOFをセット
+	}
 
 	int			nL = 0;
 	MemoInfo *	pM = pMemo;
@@ -420,8 +453,10 @@ LRESULT CALLBACK DEditWndProc(
 
 
 
+// WinMain()													//TAG_JUMP_MARK
 int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 												char * CmdLine, int CmdShow )
+/*int main()*/
 {
 
 	//hInstance = hInst;
@@ -483,7 +518,7 @@ int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 	}// end
 
 
-	// 設定データ読み込み
+	// 設定データ読み込み										//TAG_JUMP_MARK
 	while(TRUE){
 	ConfigInfo	cd;
 	char	path[ MAX_PATH ];
@@ -515,7 +550,7 @@ int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 	break;
 	}// whilr
 
-	// 前回のメモを取得
+	// 前回のメモを取得											//TAG_JUMP_MARK
 	{
 
 	char	path[ MAX_PATH ];
@@ -578,6 +613,9 @@ int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 	}// if
 	nReadLine = nLine;
 
+	// 残った過去メモを保存する
+	SaveLines( 0, 1, pTopMemoData, nMaxRead );
+
 	delete[] pb;
 
 	MemoInfo *	pM = pTopMemoData;
@@ -621,7 +659,7 @@ int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 	}
 
 
-	// 設定データ保存
+	// 設定データ保存											//TAG_JUMP_MARK
 	while(TRUE){
 
 	SaveInfo	sd;
@@ -673,6 +711,56 @@ int WinMain( HINSTANCE hInst, HINSTANCE hPrevInst,
 
 
 
+struct MenuInfo
+{
+
+	HWND	hWnd;		// メニューを表示する窓
+	HMENU	hMenu;		// メニュー
+	HMENU	hSubMenu;	// サブメニュー
+	int		x;			// メニューを表示する位置
+	int		y;
+};
+
+
+
+// ポップアップメニューの表示 DspPMenu()						//TAG_JUMP_MARK
+void DspPMenu( MenuInfo * pMD )
+{
+
+	if( pMD == NULL )		return;
+
+	POINT	pt;
+	pt.x = pMD->x;
+	pt.y = pMD->y;
+	ClientToScreen( pMD->hWnd, &pt );
+
+	TrackPopupMenu( pMD->hSubMenu, TPM_LEFTALIGN, pt.x, pt.y, 0,
+															pMD->hWnd, NULL );
+	DestroyMenu( pMD->hMenu );
+
+}
+//void DspPMenu( MenuInfo * pMD )
+
+
+
+// メニュー項目の設定 SetMainMenuItem()							//TAG_JUMP_MARK
+void SetMainMenuItem ( MenuInfo * pMD )
+{
+
+	if( pMD == NULL )		return;
+
+	pMD->hMenu = LoadMenu( hInstance, MAKEINTRESOURCE( IDR_MAINMENU ) );
+	pMD->hSubMenu = GetSubMenu( pMD->hMenu, 0 );
+
+	CheckMenuItem( pMD->hMenu, IDM_TOPMOST,
+				MF_BYCOMMAND | ( fTopmost ? MF_CHECKED : MF_UNCHECKED )  );
+
+}
+//void SetMainMenuItem ()
+
+
+
+// WndProc()													//TAG_JUMP_MARK
 LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 {
 
@@ -756,18 +844,16 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 	case WM_RBUTTONDOWN:
 		{
 
-		POINT	pt;
-		pt.x = LOWORD( lParam );
-		pt.y = HIWORD( lParam );
-		HMENU	h = LoadMenu( hInstance, MAKEINTRESOURCE( IDR_MAINMENU ) );
-		HMENU	hs = GetSubMenu( h, 0 );
-		//CheckMenuItem( h, IDM_TOPMOST,
-		//		MF_BYCOMMAND | ( gfTopMost ? MF_CHECKED : MF_UNCHECKED )  );
-		ClientToScreen( hWnd, &pt );
-		TrackPopupMenu( hs, TPM_LEFTALIGN, pt.x, pt.y, 0, hWnd, NULL );
-		DestroyMenu( h );
+		MenuInfo	md;
+		md.hWnd = hWnd;
+		md.x = LOWORD( lParam );
+		md.y = HIWORD( lParam );
 
-		}	// WM_RBUTTONDOWN
+		SetMainMenuItem( &md );
+
+		DspPMenu( &md );
+
+		}// WM_RBUTTONDOWN
 		break;
 
 	case WM_COMMAND:
@@ -790,6 +876,14 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 		case IDM_TEST:
 			{
 			}// IDM_TEST
+			break;
+
+		case IDM_TOPMOST:
+			{
+
+			SendMessage( hwndEdit, uMsg, wParam, lParam );
+
+			}// IDM_TOPMOST
 			break;
 
 		case IDM_OPEN:
@@ -1014,6 +1108,24 @@ void SetTextLine( int nl, DspInfo * pdd, MemoInfo * pmd )
 
 
 
+// メニュー項目の設定 SetDspMenuItem()							//TAG_JUMP_MARK
+void SetDspMenuItem ( MenuInfo * pMD )
+{
+
+	if( pMD == NULL )		return;
+
+	pMD->hMenu = LoadMenu( hInstance, MAKEINTRESOURCE( IDR_DSPMENU ) );
+	pMD->hSubMenu = GetSubMenu( pMD->hMenu, 0 );
+
+	//CheckMenuItem( pMD->hMenu, IDM_TOPMOST,
+	//			MF_BYCOMMAND | ( fTopmost ? MF_CHECKED : MF_UNCHECKED )  );
+
+}
+//void SetDspMenuItem ()
+
+
+
+// DspWndProc()													//TAG_JUMP_MARK
 LRESULT CALLBACK DspWndProc(
 						HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 {
@@ -1170,18 +1282,16 @@ LRESULT CALLBACK DspWndProc(
 	case WM_RBUTTONDOWN:
 		{
 
-		POINT	pt;
-		pt.x = LOWORD( lParam );
-		pt.y = HIWORD( lParam );
-		HMENU	h = LoadMenu( hInstance, MAKEINTRESOURCE( IDR_DSPMENU ) );
-		HMENU	hs = GetSubMenu( h, 0 );
-		//CheckMenuItem( h, IDM_TOPMOST,
-		//		MF_BYCOMMAND | ( gfTopMost ? MF_CHECKED : MF_UNCHECKED )  );
-		ClientToScreen( hWnd, &pt );
-		TrackPopupMenu( hs, TPM_LEFTALIGN, pt.x, pt.y, 0, hWnd, NULL );
-		DestroyMenu( h );
+		MenuInfo	md;
+		md.hWnd = hWnd;
+		md.x = LOWORD( lParam );
+		md.y = HIWORD( lParam );
 
-		}	// WM_RBUTTONDOWN
+		SetDspMenuItem( &md );
+
+		DspPMenu( &md );
+
+		}// WM_RBUTTONDOWN
 		break;
 
 	case WM_VSCROLL:
@@ -1236,6 +1346,42 @@ LRESULT CALLBACK DspWndProc(
 
 		}// WM_VSCROLL
 		return 0;
+
+	case WM_KEYDOWN:
+		{
+		WORD	wScrollNotify = 0xFFFF;
+
+		switch( wParam ){
+		case VK_UP:			wScrollNotify = SB_LINEUP;		break;
+		case VK_DOWN:		wScrollNotify = SB_LINEDOWN;	break;
+		case VK_PRIOR:		wScrollNotify = SB_PAGEUP;		break;
+		case VK_NEXT:		wScrollNotify = SB_PAGEDOWN;	break;
+		case VK_HOME:		wScrollNotify = SB_TOP;			break;
+		case VK_END:		wScrollNotify = SB_BOTTOM;		break;
+		}// switch
+
+		if( wScrollNotify != 0xffff )
+			SendMessage( hWnd, WM_VSCROLL, MAKELONG(wScrollNotify,0), 0L );
+
+		}// WM_KEYDOWN
+		break;
+
+	case WM_MOUSEWHEEL:
+		// WORD GET_KEYSTATE_WPARAM(wParam)
+		// short GET_WHEEL_DELTA_WPARAM(wParam)
+		// short GET_X_LPARAM(lParam)
+		// short GET_Y_LPARAM(lParam)
+		{
+
+		WORD	wScrollNotify = SB_LINEUP;
+		if( GET_WHEEL_DELTA_WPARAM(wParam) < 0 )
+			wScrollNotify = SB_LINEDOWN;
+		SendMessage( hWnd, WM_VSCROLL, MAKELONG(wScrollNotify,0), 0L );
+
+		//printf( "%d\n", GET_WHEEL_DELTA_WPARAM(wParam) );
+
+		}// WM_MOUSEWHEEL
+		break;
 
 	case WM_COMMAND:
 		{
@@ -1398,6 +1544,7 @@ LRESULT CALLBACK DspWndProc(
 
 
 
+// EditWndProc()												//TAG_JUMP_MARK
 LRESULT CALLBACK EditWndProc(
 						HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 {
@@ -1437,16 +1584,14 @@ LRESULT CALLBACK EditWndProc(
 	case WM_RBUTTONDOWN:
 		{
 
-		POINT	pt;
-		pt.x = LOWORD( lParam );
-		pt.y = HIWORD( lParam );
-		HMENU	h = LoadMenu( hInstance, MAKEINTRESOURCE( IDR_MAINMENU ) );
-		HMENU	hs = GetSubMenu( h, 0 );
-		//CheckMenuItem( h, IDM_TOPMOST,
-		//		MF_BYCOMMAND | ( gfTopMost ? MF_CHECKED : MF_UNCHECKED )  );
-		ClientToScreen( hWnd, &pt );
-		TrackPopupMenu( hs, TPM_LEFTALIGN, pt.x, pt.y, 0, hWnd, NULL );
-		DestroyMenu( h );
+		MenuInfo	md;
+		md.hWnd = hWnd;
+		md.x = LOWORD( lParam );
+		md.y = HIWORD( lParam );
+
+		SetMainMenuItem( &md );
+
+		DspPMenu( &md );
 
 		}// WM_RBUTTONDOWN
 		break;
@@ -1467,6 +1612,24 @@ LRESULT CALLBACK EditWndProc(
 		}
 
 		switch( LOWORD( wParam ) ){
+
+		case IDM_TOPMOST:
+			{
+
+			fTopmost ^= 1;
+
+			HWND	hwndInsertAfter =
+								fTopmost ? HWND_TOPMOST : HWND_NOTOPMOST ;
+
+			SetWindowPos( hwndMain,
+						hwndInsertAfter, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE );
+			if( hwndDsp != NULL ){
+				SetWindowPos( hwndDsp,
+						hwndInsertAfter, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE );
+			}
+
+			}// IDM_TOPMOST
+			break;
 
 		case IDM_OPEN:
 			{
@@ -1503,18 +1666,10 @@ LRESULT CALLBACK EditWndProc(
 				DspX, DspY, DspWidth, DspHeight,
 				NULL, NULL, hInstance, NULL );
 
-			/*
-			// メッセージループ
-			MSG	msg;
-			while( GetMessage( &msg, NULL, 0, 0 ) ){
-				TranslateMessage( &msg );
-				DispatchMessage( &msg );
-				if( fDspWndQuit ){
-					PostQuitMessage( 0 );
-					break;
-				}
-			}// while
-			*/
+			if( fTopmost ){
+				SetWindowPos( hwndDsp,
+						HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE );
+			}
 
 			}// end IDM_DISP
 			break;
@@ -1636,6 +1791,7 @@ LRESULT CALLBACK EditWndProc(
 
 
 
+// DEditWndProc()												//TAG_JUMP_MARK
 LRESULT CALLBACK DEditWndProc(
 						HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 {
@@ -1657,18 +1813,16 @@ LRESULT CALLBACK DEditWndProc(
 	case WM_RBUTTONDOWN:
 		{
 
-		POINT	pt;
-		pt.x = LOWORD( lParam );
-		pt.y = HIWORD( lParam );
-		HMENU	h = LoadMenu( hInstance, MAKEINTRESOURCE( IDR_DSPMENU ) );
-		HMENU	hs = GetSubMenu( h, 0 );
-		//CheckMenuItem( h, IDM_TOPMOST,
-		//		MF_BYCOMMAND | ( gfTopMost ? MF_CHECKED : MF_UNCHECKED )  );
-		ClientToScreen( hWnd, &pt );
-		TrackPopupMenu( hs, TPM_LEFTALIGN, pt.x, pt.y, 0, hWnd, NULL );
-		DestroyMenu( h );
+		MenuInfo	md;
+		md.hWnd = hWnd;
+		md.x = LOWORD( lParam );
+		md.y = HIWORD( lParam );
 
-		}	// WM_RBUTTONDOWN
+		SetDspMenuItem( &md );
+
+		DspPMenu( &md );
+
+		}// WM_RBUTTONDOWN
 		break;
 
 	case WM_COMMAND:
